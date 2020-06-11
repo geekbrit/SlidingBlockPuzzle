@@ -1,0 +1,416 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE html PUBLIC '-//W3C//DTD XHTML 1.0 Transitional//EN'
+'http://www.w3.org/TR/REC-html40/loose.dtd'>
+<html xmlns='http://www.w3.org/1999/xhtml' xml:lang='en' lang='en'>
+<head>
+<title>Sliding Block Puzzles</title>
+<script language='javascript'>
+
+var XSLICES ;
+var YSLICES ;
+var leftx,topy;         // base position for grid
+var w4,h4   ;           // cell width and height
+var xs,ys   ;           // position of empty space
+var unmap  = new Array; // for each id contains position in puzzle
+var bgcol  = new Array; // holds background colours while paused
+var blank;              // object reference for grey empty square
+var IE;
+var fcr,fcb,fcg;
+var bcr,bcb,bcg;
+var roundnum;
+var playing=0;
+var gameover=1;
+var paused=0;
+var systimer;
+var puzwidth,puzheight;
+var score,tscore;
+var time;
+var oop;
+
+
+function my_alert( text )
+{
+ id='alertbox';
+ if (document.layers)
+ {
+    document.layers[id].document.write(text);
+    document.layers[id].document.close()
+ } else if (document.all)
+        {
+            document.getElementById(id).innerHTML = text;
+        }
+        else
+        {
+            document.getElementById(id).innerHTML = text;
+        }
+
+ //if (document.all)
+ //       what.innerHTML = text;
+ //   else
+ //   {
+ //       document.layers['alertbox'].document.open();
+ //       document.layers['alertbox'].document.write(text);
+ //       document.layers['alertbox'].document.close();
+ //   }
+}
+
+function new_game()
+{
+    document.getElementById('alertbox').style.background='#002000';
+//    if(document.getElementById('nametext').value.length==0)
+//    {
+//        alert("Please enter your name for the high score table");
+//        return;
+//    }
+    document.getElementById('pbutton').disabled = false;
+    gameover=0;
+    roundnum = 1;
+    puzwidth  = 0;
+    puzheight  = 0;
+    time=0;
+    new_round();
+}
+
+function pause()
+{
+    document.getElementById('pbutton').disabled = true;
+    paused=1;
+    for( x=0; x<XSLICES; x++ )
+    {
+        for( y=0; y<YSLICES; y++ )
+        {
+            box = document.getElementById("b"+x+y);
+            box.style.color = '#ffffff';
+            box.style.backgroundColor = '#ffffff';
+        }
+    }
+    my_alert("<center><h1>P A U S E D</h1><button onclick='unpause();'>Play</button></center>");
+}
+
+function unpause()
+{
+    document.getElementById('pbutton').disabled = false;
+    for( x=0; x<XSLICES; x++ )
+    {
+        for( y=0; y<YSLICES; y++ )
+        {
+            box = document.getElementById("b"+x+y);
+            box.style.color = '#000000';
+            box.style.backgroundColor = bgcol["b"+x+y];
+        }
+    }
+    paused=0;
+}
+
+function end_game()
+{
+    document.getElementById('pbutton').disabled = true;
+    gameover=1;
+    playing=0;
+    clearInterval(systimer);
+    document.getElementById('alertbox').style.background='#200000';
+    tsquares = XSLICES * YSLICES;
+    tscore = tscore + Math.floor(score*(tsquares-oop)/tsquares);
+    my_alert("<h2>Game Over in round "+roundnum+"<br>FINAL SCORE : "+tscore+"</h2><center><button onclick='new_game();'>Play again</button></center>");
+    name = document.getElementById("nametext").value;
+    //document.getElementById('hiscores').src="http://seemypage.net/cgi-local/puzzlescores.pl?n="+escape(name)+"&s="+tscore;
+}
+
+function tisr()
+{
+    if(paused) return;
+    score-=2;
+    if(score<0)score=0;
+    time--;
+    if(0 >= time)
+    {
+        end_game();
+    }
+    else     my_alert( "<center><h2>Game On</h2><h3>"+oop+" tiles out of place<br>"+time+" seconds left<br>"+score+"points</h3></center>" );
+
+}
+
+function showprops(obj)
+{
+   var text="";
+   for (prop in obj)
+   {
+      text+=prop+" = "+obj[prop]+"   ";
+   }
+   alert(text);
+}
+
+
+function new_round()
+{
+    if(gameover) return;
+
+    inc = 140-20*roundnum;
+    if(inc<50) inc = 50;
+    time = parseInt(time)+inc;
+
+    playing = 1;
+    if( puzwidth == 0 )
+    {
+        tscore = 0;
+        puzwidth = 3;
+        puzheight = 3;
+    }
+    else
+    {
+        roundnum++;
+        if( puzwidth == puzheight )
+        {
+            if( puzwidth != 10 )puzheight++;
+        }
+        else puzwidth++;
+
+        time -=10;
+    }
+
+    score = 100*Math.floor(100*puzwidth*puzheight/time);
+    loadimage(puzwidth,puzheight);
+    playing = 0;
+    my_alert( "<center><h2>Shuffling<br>Please wait...</h2></center>" );
+    mixup(400+roundnum*50);
+    playing = 1;
+    systimer = setInterval('tisr()',1000);
+}
+
+function findPosition( oLink ) {
+  if( oLink.offsetParent ) {
+    for( var posX = 0, posY = 0; oLink.offsetParent; oLink = oLink.offsetParent ) {
+      posX += oLink.offsetLeft;
+      posY += oLink.offsetTop;
+    }
+    return [ posX, posY ];
+  } else {
+    return [ oLink.x, oLink.y ];
+  }
+}
+
+function move(id)
+{
+    if(paused) return;
+
+    retval = 0;
+    x=unmap[id.id][0];
+    y=unmap[id.id][1];
+
+    // see if we can move the square that has been clicked
+    if( x==xs )
+    {
+        if( (y==ys+1) || (y==ys-1) )
+        {
+            unmap[id.id]=[xs,ys];
+            id.style.left = leftx+xs*w4 + "px";
+            id.style.top  = topy+ys*h4 + "px";
+            xs=x; ys=y;
+            blank.style.left = leftx+xs*w4 + "px";
+            blank.style.top  = topy+ys*h4 + "px";
+            retval = 1;
+        }
+    }
+    else if( y==ys )
+         {
+            if( (x==xs+1) || (x==xs-1) )
+            {
+                unmap[id.id]=[xs,ys];
+                id.style.left = leftx+xs*w4 + "px";
+                id.style.top  = topy+ys*h4 + "px";
+                xs=x; ys=y;
+                blank.style.left = leftx+xs*w4 + "px";
+                blank.style.top  = topy+ys*h4 + "px";
+                retval = 1;
+            }
+         }
+
+    // check for finished
+
+    oop = 0;
+
+    for( x=0; x<XSLICES; x++ )
+    {
+        for( y=0; y<YSLICES; y++ )
+        {
+            if( (unmap["b"+x+y][0] != x) || (unmap["b"+x+y][1] != y) )
+            {
+                oop++;
+            }
+        }
+    }
+
+    if(playing)
+    {
+        my_alert( "<center><h2>Game On</h2><h3>"+oop+" tiles out of place<br>"+time+" seconds left<br>"+score+"points</h3>" );
+
+        if(!oop)
+        {
+            window.clearInterval(systimer);
+            playing = 0;
+            tscore = parseInt(score)+parseInt(tscore);
+            my_alert( "<h2>End of round "+roundnum+"</h2><h3>Score this round "+score+"&nbsp Total score so far "+tscore+"<br>Carrying forward "+time+" seconds</h3>"+
+                       "<center><button onclick='new_round()'>Next round</button>" );
+        }
+    }
+    return retval;
+}
+
+
+function mixup( steps )
+{
+    while(steps)
+    {
+        x = Math.floor(Math.random()*XSLICES);
+        if(x==XSLICES) x=XSLICES-1;
+
+        y = Math.floor(Math.random()*YSLICES);
+        if(y==YSLICES) y=YSLICES-1;
+
+        if((x==XSLICES-1)&&(y=YSLICES-1)) y=0;
+
+        box = document.getElementById("b"+x+y);
+        steps -= move(box);
+    }
+}
+
+function loadimage(xdivs, ydivs)
+{
+    var fcol = "00ffff";
+    var bcol = "0000c0";
+
+        fcr=parseInt(fcol,16)>>16;
+        fcg=(parseInt(fcol,16)>>8)&255 ;
+        fcb=parseInt(fcol,16)&255;
+        bcr=parseInt(bcol,16)>>16;
+        bcg=(parseInt(bcol,16)>>8)&255 ;
+        bcb=parseInt(bcol,16)&255;
+
+        // want differences for colour calculations
+        bcr=fcr-bcr;
+        bcg=fcg-bcg;
+        bcb=fcb-bcb;
+
+    c=document.getElementById("ctr");
+
+    //Delete any existing child nodes
+    for( x=0; x<XSLICES; x++ )
+    {
+        for( y=0; y<YSLICES; y++ )
+        {
+            dv = document.getElementById("b"+x+y);
+            c.removeChild(dv);
+        }
+    }
+
+
+    // limit 2x2 to 10x10 puzzle
+    if(xdivs > 10) xdivs=10;
+    if(ydivs > 10) ydivs=10;
+    if(xdivs <  2) xdivs= 2;
+    if(ydivs <  2) ydivs= 2;
+
+    XSLICES = xdivs;
+    YSLICES = ydivs;
+
+    xs = xdivs-1;
+    ys = ydivs-1;
+
+    h4 = 300/ydivs;
+    w4 = h4;
+
+    w = xdivs*w4;
+    h = ydivs*h4;
+
+    c.style.width =w + "px";
+    c.style.height=h + "px";
+
+    leftx=findPosition(c)[0];
+    topy=findPosition(c)[1];
+
+//alert("["+w4+","+h4+"]");
+
+    for(x=0; x<xdivs; x++)
+    {
+        for(y=0;y<ydivs;y++)
+        {
+            box=document.createElement("DIV");
+            box.style.cssText = 'position:absolute;margins:0;padding:0;border-style:inset;border-width:1;border-bottom-width:2;border-right-width:2;border-color:#aaaaaa;';
+            box.setAttribute("id","b"+x+y);
+            box.style.left = leftx+x*w4 + "px";
+            box.style.top  = topy+y*h4 + "px";
+            box.style.width= w4 + "px";
+            box.style.height=h4 + "px";
+            box.style.fontSize=0.75*h4 + "px";
+            if((x==xdivs-1)&&(y==ydivs-1))
+            {
+                box.style.backgroundColor="#cccccc";
+                blank = box;
+            }
+            else
+            {
+                box.onmousedown = function(){move(this)};
+                v = 1+x+XSLICES*y;
+                ratio = v/(xdivs*ydivs);
+                red = fcr-ratio*bcr;
+                grn = fcg-ratio*bcg;
+                blu = fcb-ratio*bcb;
+
+                //box.style.backgroundColor="#"+red.toString(16)+grn.toString(16)+blu.toString(16);
+                box.style.backgroundColor=(red<<16)+(grn<<8)+blu;
+                newText=document.createTextNode(v.toString(10));
+                box.appendChild(newText);
+            }
+            c.appendChild(box);
+            unmap["b"+x+y] = [x,y];
+            bgcol["b"+x+y] = box.style.backgroundColor;
+        }
+    }
+}
+
+function showfull()
+{
+    //msg = window.open("http://seemypage.net/cgi-local/npuzzlescores.pl?n=init&m=100",
+    //                  "SeeMyPage",
+    //                  "toolbar=no,width=200,height=400,directories=no,status=no,scrollbars=yes,resize=no,menubar=no");
+}
+
+</script>
+</head>
+<body onload="loadimage(3,3);document.getElementById('start').disabled=false;">
+<table cellpadding=0 cellspacing=0 width='90%'>
+       <tr><td bgcolor=#4040ff>&nbsp</td><td bgcolor=#6060FF>&nbsp</td><td bgcolor=#8080FF>&nbsp</td></tr>
+       <tr><td bgcolor=#6060FF nowrap><b><font color=white>1: Here there&nbsp<br>2: were some<br>3: bullet points</font></b></td>
+           <td align=center bgcolor=#8080FF><img src=Image3_halfsize.jpg width=400px height=118></img></td>
+           <td bgcolor=#A0A0FF width=50px>&nbsp</td></tr>
+       <tr><td bgcolor=#8080FF>&nbsp</td>
+           <td bgcolor=#A0A0FF><center><i><font color=#800040>Some blurb about a dynamic ip web host system I made</font></i><center></td>
+           <td bgcolor=#B0B0FF>&nbsp</td></tr
+       <tr><td bgcolor=#A0A0ff valign="top">This is how we<br>coded stuff in the<br>bad old days when<br>css was still new.
+               <p>Note, I haven't owned<br>the seemypage.net domain<br>for at least 15 years,<br>I have no affiliation<br>with any content<br>on that site.</p>
+           </td>
+           <td bgcolor=#FFFFC0 valign='top'>
+
+<table cellpadding=0 cellspacing=0>
+    <tr>
+        <td valign='top'></td>
+        <td valign='top'><div id='ctr' style='width:300px;height:300px;'></div></td>
+    </tr>
+
+    <tr><td></td>
+        <td><button id="pbutton" disabled onclick='pause();'>Pause</button></td></tr>
+
+    <tr><td colspan=2 width='460px'>
+        <div id='alertbox' style='width:460px;height:140px;background:#fff;align:center;font-size:8pt;'><center><font color='#00c000' size='5'>Sliding Block Puzzle Challenge</font></center>
+            <font color='#008000'>Click the Start Game button, then click on the squares next to the empty (grey) square to put the numbers back into order.
+                Each round finishes when the numbers are in order (1 top left corner, empty square bottom right corner). This is a race against time, unused
+                seconds are carried forward to the next round <font color='#800000'>but the more seconds you carry forward, the fewer points you can earn in the next round.</font>
+                <font color='#008000'>You can practice moving squares around before starting the game.</font><br>
+           <center><button id='start' disabled onclick='new_game();'>Start Game</button></center></div>
+        </td></tr>
+</table>
+
+     </td><td bgcolor=#D0D0FF>&nbsp</td></tr>
+     <tr><td bgcolor=#B0B0FF><font color=white>Copyleft 2003<br>Peter Maloy<br>CodeSprite Inc.</font></td><td bgcolor=#D0D0FF><center>&nbsp</center></td><td bgcolor=#E0E0FF>&nbsp</td></tr></table>
+</body>
+</html>
